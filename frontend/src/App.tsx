@@ -1,33 +1,41 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+
+type Position = { x: number; y: number };
 
 export default function TonePickerApp() {
-  const [text, setText] = useState("Type here...");
-  const [history, setHistory] = useState(["Type here..."]);
-  const [index, setIndex] = useState(0);
+  const [text, setText] = useState<string>("Type here...");
+  const [history, setHistory] = useState<string[]>(["Type here..."]);
+  const [index, setIndex] = useState<number>(0);
 
-  const boxRef = useRef(null);
-  const draggingRef = useRef(false);
-  const pointerIdRef = useRef(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef<boolean>(false);
+  const pointerIdRef = useRef<number | null>(null);
 
-  // handle position in pixels relative to center
-  const [handlePos, setHandlePos] = useState({ x: 0, y: 0 });
+  const [handlePos, setHandlePos] = useState<Position>({ x: 0, y: 0 });
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
 
-  // Convert handle px -> scores (-50..50)
   const scores = useMemo(() => {
     const rect = boxRef.current?.getBoundingClientRect();
     const half = rect ? Math.min(rect.width, rect.height) / 2 : 120;
-    const clamp = (v) => Math.max(-half, Math.min(half, v));
+    const clamp = (v: number) => Math.max(-half, Math.min(half, v));
     const x = clamp(handlePos.x);
     const y = clamp(handlePos.y);
-    const toScore = (v) => Math.round((v / half) * 50);
-    return { conciseness: toScore(x), professionalism: toScore(y) };
+    const toScore = (v: number) => Math.round((v / half) * 50);
+    return {
+      conciseness: toScore(x),
+      professionalism: toScore(y),
+    };
   }, [handlePos]);
 
-  // helper: set handle position from clientX/Y
-  function setHandleFromClient(clientX, clientY) {
+  function setHandleFromClient(clientX: number, clientY: number) {
     const rect = boxRef.current?.getBoundingClientRect();
     if (!rect) return;
     const cx = rect.left + rect.width / 2;
@@ -35,55 +43,47 @@ export default function TonePickerApp() {
     const half = Math.min(rect.width, rect.height) / 2;
     const rawX = clientX - cx;
     const rawY = clientY - cy;
-    const clamp = (v) => Math.max(-half, Math.min(half, v));
+    const clamp = (v: number) => Math.max(-half, Math.min(half, v));
     setHandlePos({ x: clamp(rawX), y: clamp(rawY) });
   }
 
-  // pointermove/up handlers registered on window when dragging
   useEffect(() => {
-    function onPointerMove(e) {
-      // Only react to the pointer we captured (optional)
+    function onPointerMove(e: PointerEvent) {
       if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) return;
       setHandleFromClient(e.clientX, e.clientY);
     }
-    function onPointerUp(e) {
+
+    function onPointerUp(e: PointerEvent) {
       if (pointerIdRef.current != null && e.pointerId !== pointerIdRef.current) return;
       draggingRef.current = false;
       pointerIdRef.current = null;
-      // apply tone when user lifts pointer
       applyTone(scores.conciseness, scores.professionalism);
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     }
-    // cleanup (if any)
+
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scores.conciseness, scores.professionalism, text, history, index]);
+  }, [scores.conciseness, scores.professionalism]);
 
-  // start drag or move knob (called by pointerdown on box)
-  function onBoxPointerDown(e) {
-    // If right-click or not primary button, ignore
+  function onBoxPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
     if (e.button && e.button !== 0) return;
     e.preventDefault();
-    // move handle to pointer
     setHandleFromClient(e.clientX, e.clientY);
-    // start dragging
     draggingRef.current = true;
     pointerIdRef.current = e.pointerId ?? null;
 
-    // attach global listeners
-    function onPointerMoveGlobal(ev) {
+    function onPointerMoveGlobal(ev: PointerEvent) {
       if (pointerIdRef.current != null && ev.pointerId !== pointerIdRef.current) return;
       setHandleFromClient(ev.clientX, ev.clientY);
     }
-    function onPointerUpGlobal(ev) {
+
+    function onPointerUpGlobal(ev: PointerEvent) {
       if (pointerIdRef.current != null && ev.pointerId !== pointerIdRef.current) return;
       draggingRef.current = false;
       pointerIdRef.current = null;
-      // apply tone
       applyTone(scores.conciseness, scores.professionalism);
       window.removeEventListener("pointermove", onPointerMoveGlobal);
       window.removeEventListener("pointerup", onPointerUpGlobal);
@@ -93,11 +93,7 @@ export default function TonePickerApp() {
     window.addEventListener("pointerup", onPointerUpGlobal);
   }
 
-  // Also allow handle to be dragged when pointerdown begins on handle.
-  // But our box pointer handlers already capture that; handle element receives pointer events too.
-
-  // === API call ===
-  async function applyTone(cScore, pScore) {
+  async function applyTone(cScore: number, pScore: number) {
     setLoading(true);
     setError("");
     try {
@@ -122,7 +118,6 @@ export default function TonePickerApp() {
     }
   }
 
-  // Undo / Redo / Reset
   const undo = () => {
     if (index > 0) {
       const newIndex = index - 1;
@@ -130,6 +125,7 @@ export default function TonePickerApp() {
       setText(history[newIndex]);
     }
   };
+
   const redo = () => {
     if (index < history.length - 1) {
       const newIndex = index + 1;
@@ -137,6 +133,7 @@ export default function TonePickerApp() {
       setText(history[newIndex]);
     }
   };
+
   const reset = () => {
     const original = history[0] ?? "";
     setText(original);
@@ -146,8 +143,7 @@ export default function TonePickerApp() {
     setError("");
   };
 
-  // compute CSS transform from handlePos
-  const handleStyle = {
+  const handleStyle: React.CSSProperties = {
     transform: `translate(${handlePos.x}px, ${handlePos.y}px)`,
     transition: draggingRef.current ? "none" : "transform 0.12s ease-out",
   };
@@ -155,13 +151,11 @@ export default function TonePickerApp() {
   return (
     <div className="min-h-screen w-screen bg-black text-white p-8">
       <div className="max-w-7xl mx-auto grid lg:grid-cols-2 gap-8">
-        {/* Header */}
         <div className="lg:col-span-2 flex items-center justify-between mb-2">
           <h1 className="text-2xl font-semibold">Tone Picker — Draggable 2D Grid</h1>
           <div className="text-sm text-gray-400">Drag or click the square to set tone. Release to apply.</div>
         </div>
 
-        {/* Left: Editor */}
         <div className="bg-white text-black rounded-2xl p-6 shadow-lg flex flex-col">
           <label className="text-sm font-medium text-gray-700 mb-2">Editor</label>
           <textarea
@@ -194,7 +188,6 @@ export default function TonePickerApp() {
           {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
         </div>
 
-        {/* Right: Tone picker */}
         <div className="flex items-start justify-center">
           <div className="w-[420px]">
             <label className="block text-sm font-medium text-gray-300 mb-2">Tone Picker</label>
@@ -205,39 +198,30 @@ export default function TonePickerApp() {
               className="relative bg-gray-900 rounded-2xl border border-gray-700 h-[400px] select-none touch-none"
               role="presentation"
             >
-              {/* inner square margin for labels */}
               <div className="absolute inset-6 rounded-lg border border-gray-800 bg-gradient-to-br from-gray-800 to-gray-900" />
-
-              {/* axis lines (center) */}
               <div className="absolute top-1/2 left-6 right-6 -translate-y-1/2 border-t border-gray-700 pointer-events-none" />
               <div className="absolute left-1/2 top-6 bottom-6 -translate-x-1/2 border-l border-gray-700 pointer-events-none" />
 
-              {/* quadrant labels */}
               <div className="absolute left-6 top-6 text-xs text-gray-400">Concise / Professional</div>
               <div className="absolute right-6 top-6 text-xs text-gray-400">Expanded / Professional</div>
               <div className="absolute left-6 bottom-6 text-xs text-gray-400">Concise / Casual</div>
               <div className="absolute right-6 bottom-6 text-xs text-gray-400">Expanded / Casual</div>
 
-              {/* live scores pill */}
               <div className="absolute left-1/2 -translate-x-1/2 top-4 px-3 py-1 bg-black/60 border border-gray-600 rounded-full text-xs text-gray-200">
                 C: {scores.conciseness} • P: {scores.professionalism}
               </div>
 
-              {/* draggable knob */}
               <div
                 className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-indigo-500 ring-4 ring-indigo-900 shadow-lg"
                 style={handleStyle}
-                // also allow pointerdown on the knob to start drag (delegates to onBoxPointerDown)
                 onPointerDown={(e) => {
-                  // prevent double handling; delegate to box handler
                   e.stopPropagation();
                   onBoxPointerDown(e);
                 }}
               />
 
-              {/* subtle grid lines (4x4) for guidance */}
               <div className="absolute left-6 right-6 top-6 bottom-6 grid grid-cols-4 grid-rows-4 gap-0 pointer-events-none">
-                {Array.from({ length: 4 * 4 }).map((_, i) => (
+                {Array.from({ length: 16 }).map((_, i) => (
                   <div key={i} className="border border-dashed border-transparent" />
                 ))}
               </div>

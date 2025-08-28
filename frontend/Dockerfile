@@ -1,7 +1,7 @@
 FROM node:22.13.1-alpine
 
-COPY . /
+COPY dist/ frontend/
 
-RUN npm i
+RUN npm i serve -g
 
-CMD [ "npm", "run", "dev" ]
+CMD [ "serve", "-S", "frontend" ]
